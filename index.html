@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <title>Study Tracker</title>
+  <style>
+    :root{
+      --bg: #0b0f14;
+      --card: #121923;
+      --muted: #9fb1c7;
+      --text: #eaf2ff;
+      --accent: #5ab0ff;
+      --good: #2ecc71;
+      --warn: #ffa646;
+      --bad: #ff5a5f;
+      --border: #1f2a3a;
+      --shadow: 0 10px 30px rgba(0,0,0,.35);
+      --radius: 14px;
+    }
+    @media (prefers-color-scheme: light){
+      :root{
+        --bg: #f6f9ff;
+        --card: #ffffff;
+        --muted: #5b6b80;
+        --text: #0e1726;
+        --accent: #1565c0;
+        --good: #1b5e20;
+        --warn: #e65100;
+        --bad: #b71c1c;
+        --border: #dfe7f3;
+        --shadow: 0 8px 20px rgba(0,0,0,.08);
+      }
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0; font: 16px/1.4 system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      color:var(--text); background:var(--bg);
+      -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;
+    }
+    header{
+      position: sticky; top: 0; z-index: 10;
+      backdrop-filter: blur(10px);
+      background: color-mix(in oklab, var(--bg) 85%, transparent);
+      border-bottom: 1px solid var(--border);
+    }
+    .wrap{max-width: 1100px; margin: 0 auto; padding: 14px 16px;}
+    .topbar{
+      display:flex; gap:10px; align-items:center; justify-content:space-between;
+    }
+    .title{font-size:20px; font-weight:700; letter-spacing:.3px;}
+    .actions{display:flex; gap:8px; align-items:center;}
+    button, .chip, select, input[type="text"], input[type="number"]{
+      border:1px solid var(--border); background:var(--card); color:var(--text);
+      padding:10px 12px; border-radius:12px; box-shadow: var(--shadow);
+    }
+    button{cursor:pointer; transition: transform .06s ease}
+    button:active{transform: scale(.98)}
+    button.primary{background:var(--accent); border-color: color-mix(in oklab, var(--accent), black 10%); color:white; font-weight:700}
+    main{padding: 16px;}
+    .grid{display:grid; gap:14px}
+    @media(min-width:900px){ .grid{grid-template-columns: 2fr 1fr} }
+    .card{
+      background:var(--card); border:1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow);
+      padding:16px;
+    }
+    .card h2{margin:0 0 10px 0; font-size:16px; opacity:.9}
+    .summary{display:grid; grid-template-columns: repeat(4,1fr); gap:10px}
+    .metric{background: color-mix(in oklab, var(--card), white 2%); border:1px dashed var(--border); border-radius:12px; padding:12px}
+    .metric .v{font-size:22px; font-weight:800}
+    .metric .k{color:var(--muted); font-size:12px}
+    .flex{display:flex; gap:10px; align-items:center; flex-wrap:wrap}
+    .row{display:flex; gap:10px; align-items:center}
+    canvas{width:100%; height:180px; display:block}
+    .heatmap{display:grid; grid-template-columns: repeat(7,1fr); gap:6px; margin-top:8px}
+    .cell{height:20px; border-radius:6px; background:#1f2a3a; position:relative}
+    .cell[data-level="1"]{background: #16324a}
+    .cell[data-level="2"]{background: #0f4c75}
+    .cell[data-level="3"]{background: #1b6ca8}
+    .cell[data-level="4"]{background: #3282b8}
+    .legend{display:flex; gap:6px; align-items:center; color:var(--muted); font-size:12px}
+    .legend .box{width:16px; height:16px; border-radius:4px; background:#1f2a3a}
+    .list{display:flex; flex-direction:column; gap:10px; max-height:320px; overflow:auto}
+    .item{display:flex; align-items:center; justify-content:space-between; gap:10px; border:1px solid var(--border); border-radius:12px; padding:10px}
+    .item .left{display:flex; align-items:center; gap:10px}
+    .badge{padding:4px 8px; border-radius:999px; background: color-mix(in oklab, var(--accent), white 10%); color:white; font-size:12px}
+    .muted{color:var(--muted)}
+    .kbd{font-family: ui-monospace, SF Mono, Menlo, Consolas, monospace; font-size:12px; background: color-mix(in oklab, var(--card), white 3%); padding:2px 6px; border-radius:6px; border:1px solid var(--border)}
+    dialog::backdrop{background: rgba(0,0,0,.5)}
+    dialog{border:none; border-radius:16px; padding:0; overflow:hidden; box-shadow: var(--shadow); max-width: 520px; width: calc(100% - 28px); background:var(--card)}
+    .modal-head{display:flex; justify-content:space-between; align-items:center; padding:14px 16px; border-bottom:1px solid var(--border)}
+    .modal-body{padding:16px; display:grid; gap:10px}
+    label{font-size:12px; color:var(--muted)}
+    input, select, textarea{width:100%}
+    textarea{min-height:80px; border-radius:12px; padding:10px; border:1px solid var(--border); background:var(--card); color:var(--text)}
+    .timer{
+      display:flex; align-items:center; justify-content:center; gap:14px; padding:14px; border:1px solid var(--border);
+      border-radius:12px; font-weight:800; font-size:28px;
+    }
+    .footer{padding:12px 16px; color:var(--muted); text-align:center}
+    .danger{background: color-mix(in oklab, var(--bad), white 15%); border-color: color-mix(in oklab, var(--bad), black 10%);}
+    .ghost{background: transparent; box-shadow:none}
+    .sr{position:absolute; left:-10000px; width:1px; height:1px; overflow:hidden}
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap topbar">
+      <div class="title">📚 Study Tracker</div>
+      <div class="actions">
+        <button id="addSessionBtn" class="primary">+ Log Study</button>
+        <button id="addSubjectBtn">+ Subject</button>
+        <button id="exportBtn" title="Export data">Export</button>
+        <button id="importBtn" title="Import data">Import</button>
+        <button id="resetBtn" class="danger" title="Reset all data">Reset</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="wrap grid">
+    <section class="card">
+      <h2>Today & Week</h2>
+      <div class="summary">
+        <div class="metric"><div class="v" id="todayMin">0m</div><div class="k">Today total</div></div>
+        <div class="metric"><div class="v" id="weekMin">0m</div><div class="k">Last 7 days</div></div>
+        <div class="metric"><div class="v" id="streak">0 🔥</div><div class="k">Daily streak</div></div>
+        <div class="metric"><div class="v" id="goal">120m</div><div class="k">Daily goal</div></div>
+      </div>
+      <div class="legend" style="margin-top:10px">
+        <span>Heatmap (last 7 days):</span>
+        <div class="box"></div><div class="box" style="background:#16324a"></div>
+        <div class="box" style="background:#0f4c75"></div>
+        <div class="box" style="background:#1b6ca8"></div>
+        <div class="box" style="background:#3282b8"></div>
+      </div>
+      <div id="heatmap" class="heatmap" aria-label="Study heatmap"></div>
+      <div style="margin-top:12px">
+        <canvas id="weekChart" aria-label="Weekly minutes chart"></canvas>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Timer</h2>
+      <div class="timer"><span id="timerDisplay">00:00:00</span></div>
+      <div class="flex" style="margin-top:8px">
+        <select id="timerSubject"></select>
+        <button id="startTimer" class="primary">Start</button>
+        <button id="stopTimer">Stop & Save</button>
+        <button id="lapBtn" class="ghost">Lap</button>
+      </div>
+      <div class="muted" style="margin-top:6px">Tip: add to Home Screen on iPad (Share → Add to Home Screen) to use full-screen.</div>
+    </section>
+
+    <section class="card">
+      <h2>Subjects</h2>
+      <div id="subjects" class="list"></div>
+    </section>
+
+    <section class="card">
+      <h2>Recent Sessions</h2>
+      <div id="sessions" class="list"></div>
+    </section>
+  </main>
+
+  <dialog id="sessionModal">
+    <div class="modal-head">
+      <strong>Log Study Session</strong>
+      <button data-close>✕</button>
+    </div>
+    <form class="modal-body" id="sessionForm">
+      <div>
+        <label>Subject</label>
+        <select id="subjectSelect" required></select>
+      </div>
+      <div class="row">
+        <div style="flex:1">
+          <label>Minutes</label>
+          <input type="number" id="minutes" min="1" value="30" required />
+        </div>
+        <div style="flex:1">
+          <label>Date</label>
+          <input type="date" id="date" />
+        </div>
+      </div>
+      <div>
+        <label>Notes</label>
+        <textarea id="notes" placeholder="e.g., NCERT Biology Ch. 8, 40 MCQs"></textarea>
+      </div>
+      <div class="row" style="justify-content:flex-end">
+        <button type="button" data-close>Cancel</button>
+        <button class="primary">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="subjectModal">
+    <div class="modal-head">
+      <strong>Add Subject</strong>
+      <button data-close>✕</button>
+    </div>
+    <form class="modal-body" id="subjectForm">
+      <div>
+        <label>Subject name</label>
+        <input type="text" id="subjectName" placeholder="e.g., Physics" required>
+      </div>
+      <div class="row">
+        <div style="flex:1">
+          <label>Daily goal (min)</label>
+          <input type="number" id="subjectGoal" value="120" min="10" step="10">
+        </div>
+        <div style="flex:1">
+          <label>Color (optional)</label>
+          <input type="text" id="subjectColor" placeholder="#1565c0">
+        </div>
+      </div>
+      <div class="row" style="justify-content:flex-end">
+        <button type="button" data-close>Cancel</button>
+        <button class="primary">Add</button>
+      </div>
+    </form>
+  </dialog>
+
+  <input type="file" id="importFile" accept="application/json" class="sr" />
+
+  <footer class="footer">Made for iPad • Works offline • Your data stays on your device</footer>
+
+<script>
+const qs = s => document.querySelector(s);
+const qsa = s => Array.from(document.querySelectorAll(s));
+
+const store = {
+  key: 'study-tracker-v1',
+  get(){ try{ return JSON.parse(localStorage.getItem(this.key)) || {subjects:[], sessions:[], laps:[], goal:120}; }catch(_){ return {subjects:[], sessions:[], laps:[], goal:120}; } },
+  set(data){ localStorage.setItem(this.key, JSON.stringify(data)); }
+};
+
+let state = store.get();
+
+function uid(){ return Math.random().toString(36).slice(2,9) }
+
+function save(){ store.set(state); render(); }
+
+function addSubject(name, goal, color){
+  const s = {id: uid(), name, goal: Number(goal)||120, color: color||null, createdAt: Date.now()};
+  state.subjects.push(s); save();
+}
+
+function addSession(subjectId, minutes, date, notes){
+  const when = date ? new Date(date) : new Date();
+  const s = {id: uid(), subjectId, minutes: Number(minutes), notes: notes||'', at: when.toISOString()};
+  state.sessions.unshift(s); // newest first
+  save();
+}
+
+function removeSession(id){
+  state.sessions = state.sessions.filter(x=>x.id!==id); save();
+}
+
+function removeSubject(id){
+  state.subjects = state.subjects.filter(x=>x.id!==id);
+  state.sessions = state.sessions.filter(x=>x.subjectId!==id);
+  save();
+}
+
+function humanMin(m){ if (m<60) return m + 'm'; return Math.floor(m/60)+'h '+(m%60)+'m'; }
+
+function todayISO(d=new Date()){ const x = new Date(d); x.setHours(0,0,0,0); return x.toISOString(); }
+function dayKey(d){ const x=new Date(d); x.setHours(0,0,0,0); return x.getTime(); }
+
+function getStats(){
+  const byDay = new Map();
+  let todayMin = 0, weekMin = 0;
+  const now = new Date();
+  const todayKey = dayKey(now);
+  const weekAgo = new Date(now); weekAgo.setDate(now.getDate()-6); weekAgo.setHours(0,0,0,0);
+  for (const s of state.sessions){
+    const d = new Date(s.at);
+    const k = dayKey(d);
+    byDay.set(k, (byDay.get(k)||0) + s.minutes);
+    if (k===todayKey) todayMin += s.minutes;
+    if (d>=weekAgo) weekMin += s.minutes;
+  }
+  // streak: consecutive days meeting goal
+  const goal = state.goal || 120;
+  let streak=0;
+  for (let i=0;i<365;i++){
+    const day = new Date(now); day.setDate(now.getDate()-i); day.setHours(0,0,0,0);
+    const m = byDay.get(day.getTime())||0;
+    if (m >= goal) streak++; else break;
+  }
+  return {todayMin, weekMin, byDay, streak, goal};
+}
+
+function renderSummary(){
+  const {todayMin, weekMin, streak, goal} = getStats();
+  qs('#todayMin').textContent = humanMin(todayMin);
+  qs('#weekMin').textContent = humanMin(weekMin);
+  qs('#streak').textContent = streak + ' 🔥';
+  qs('#goal').textContent = goal + 'm';
+}
+
+function renderHeatmap(){
+  const root = qs('#heatmap'); root.innerHTML='';
+  const {byDay} = getStats();
+  const now = new Date(); now.setHours(0,0,0,0);
+  for (let i=6;i>=0;i--){
+    const day = new Date(now); day.setDate(now.getDate()-i);
+    const m = byDay.get(day.getTime())||0;
+    let lvl = 0;
+    if (m>0) lvl=1; if (m>=30) lvl=2; if (m>=60) lvl=3; if (m>=120) lvl=4;
+    const cell = document.createElement('div');
+    cell.className='cell'; cell.dataset.level = String(lvl);
+    cell.title = day.toDateString() + ' • ' + humanMin(m);
+    root.appendChild(cell);
+  }
+}
+
+function renderWeekChart(){
+  const cvs = qs('#weekChart');
+  const ctx = cvs.getContext('2d');
+  const w = cvs.width = cvs.clientWidth * devicePixelRatio;
+  const h = cvs.height = 180 * devicePixelRatio;
+  ctx.clearRect(0,0,w,h);
+  // axes
+  ctx.globalAlpha=0.8;
+  ctx.lineWidth = 1 * devicePixelRatio;
+  ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--border').trim();
+  ctx.beginPath(); ctx.moveTo(40*devicePixelRatio,10*devicePixelRatio); ctx.lineTo(40*devicePixelRatio,h-30*devicePixelRatio); ctx.lineTo(w-10*devicePixelRatio,h-30*devicePixelRatio); ctx.stroke();
+  // data
+  const {byDay} = getStats();
+  const now = new Date(); now.setHours(0,0,0,0);
+  const labels=[], data=[];
+  for (let i=6;i>=0;i--){
+    const d=new Date(now); d.setDate(now.getDate()-i);
+    labels.push(d.toLocaleDateString(undefined,{weekday:'short'}));
+    data.push(byDay.get(d.getTime())||0);
+  }
+  const max = Math.max(120, ...data, 10);
+  const barW = (w-70*devicePixelRatio)/7 - 10*devicePixelRatio;
+  const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim();
+  labels.forEach((lab, idx)=>{
+    const x = 50*devicePixelRatio + idx*((w-70*devicePixelRatio)/7);
+    const y = h-30*devicePixelRatio;
+    const val = data[idx];
+    const bh = (val/max) * (h-60*devicePixelRatio);
+    ctx.fillStyle = accent;
+    ctx.fillRect(x, y-bh, barW, bh);
+    ctx.globalAlpha=0.9;
+    ctx.font = (10*devicePixelRatio)+'px system-ui';
+    ctx.fillStyle = getComputedStyle(document.body).color;
+    ctx.fillText(lab, x, h-14*devicePixelRatio);
+  });
+}
+
+function renderSubjects(){
+  const box = qs('#subjects'); box.innerHTML='';
+  if (state.subjects.length===0){
+    box.innerHTML = '<div class="muted">No subjects yet. Add one using <span class="kbd">+ Subject</span>.</div>';
+    return;
+  }
+  for (const s of state.subjects){
+    const total = state.sessions.filter(x=>x.subjectId===s.id).reduce((a,b)=>a+b.minutes,0);
+    const el = document.createElement('div');
+    el.className='item';
+    el.innerHTML = \`
+      <div class="left">
+        <div class="badge" style="background:\${s.color||'var(--accent)'}">\${s.name}</div>
+        <div class="muted">\${humanMin(total)} total</div>
+      </div>
+      <div class="row">
+        <button data-edit="\${s.id}">Edit</button>
+        <button class="danger" data-del="\${s.id}">Delete</button>
+      </div>
+    \`;
+    box.appendChild(el);
+  }
+  // actions
+  qsa('[data-del]').forEach(b=>b.onclick=()=>{
+    if(confirm('Delete subject and its sessions?')) removeSubject(b.dataset.del);
+  });
+  qsa('[data-edit]').forEach(b=>b.onclick=()=>{
+    const s = state.subjects.find(x=>x.id===b.dataset.edit);
+    if (!s) return;
+    const name = prompt('Subject name', s.name) || s.name;
+    const goal = Number(prompt('Daily goal (min)', s.goal) || s.goal);
+    const color = prompt('Color (e.g., #1565c0 or empty)', s.color || '') || null;
+    s.name = name; s.goal = goal; s.color = color; save();
+  });
+}
+
+function renderSessions(){
+  const box = qs('#sessions'); box.innerHTML='';
+  if (state.sessions.length===0){ box.innerHTML='<div class="muted">No sessions yet. Use the timer or "Log Study".</div>'; return; }
+  for (const s of state.sessions.slice(0,50)){
+    const subj = state.subjects.find(x=>x.id===s.subjectId);
+    const el = document.createElement('div');
+    el.className='item';
+    const when = new Date(s.at);
+    el.innerHTML = \`
+      <div class="left">
+        <div class="badge" style="background:\${subj?.color||'var(--accent)'}">\${subj?.name||'Unknown'}</div>
+        <div>
+          <div><strong>\${s.minutes}m</strong> <span class="muted">— \${when.toLocaleString()}</span></div>
+          <div class="muted">\${s.notes? s.notes.replace(/[<>]/g,'') : ''}</div>
+        </div>
+      </div>
+      <button class="danger" data-del="\${s.id}">Delete</button>
+    \`;
+    box.appendChild(el);
+  }
+  qsa('#sessions [data-del]').forEach(b=>b.onclick=()=>{
+    if (confirm('Delete this session?')) removeSession(b.dataset.del);
+  });
+}
+
+function renderSelects(){
+  const selects = [qs('#subjectSelect'), qs('#timerSubject')];
+  for (const sel of selects){ sel.innerHTML=''; }
+  for (const s of state.subjects){
+    for (const sel of selects){
+      const opt = document.createElement('option');
+      opt.value = s.id; opt.textContent = s.name; sel.appendChild(opt);
+    }
+  }
+}
+
+function render(){
+  renderSummary();
+  renderHeatmap();
+  renderWeekChart();
+  renderSubjects();
+  renderSessions();
+  renderSelects();
+}
+
+function openDialog(d){
+  d.showModal();
+  d.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>d.close());
+}
+
+// modal handlers
+qs('#addSessionBtn').onclick = ()=>{
+  if (state.subjects.length===0){ alert('Add a subject first.'); return; }
+  const d = qs('#sessionModal');
+  qs('#minutes').value = 30;
+  qs('#date').value = new Date().toISOString().slice(0,10);
+  qs('#notes').value='';
+  openDialog(d);
+};
+qs('#addSubjectBtn').onclick = ()=> openDialog(qs('#subjectModal'));
+
+qs('#sessionForm').onsubmit = (e)=>{
+  e.preventDefault();
+  const subjectId = qs('#subjectSelect').value;
+  const minutes = qs('#minutes').value;
+  const date = qs('#date').value;
+  const notes = qs('#notes').value;
+  addSession(subjectId, minutes, date, notes);
+  qs('#sessionModal').close();
+};
+
+qs('#subjectForm').onsubmit = (e)=>{
+  e.preventDefault();
+  const name = qs('#subjectName').value.trim();
+  const goal = qs('#subjectGoal').value;
+  const color = qs('#subjectColor').value.trim();
+  if (!name) return;
+  addSubject(name, goal, color);
+  qs('#subjectModal').close();
+};
+
+// export/import/reset
+qs('#exportBtn').onclick = ()=>{
+  const data = JSON.stringify(state, null, 2);
+  const blob = new Blob([data], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'study-tracker-data.json';
+  a.click();
+  URL.revokeObjectURL(url);
+};
+
+qs('#importBtn').onclick = ()=> qs('#importFile').click();
+qs('#importFile').onchange = async (e)=>{
+  const file = e.target.files[0]; if (!file) return;
+  try{
+    const txt = await file.text();
+    const data = JSON.parse(txt);
+    if (!data.subjects || !data.sessions) throw new Error('Invalid file');
+    state = data; save();
+    alert('Imported ✓');
+  }catch(err){ alert('Import failed: '+err.message); }
+};
+
+qs('#resetBtn').onclick = ()=>{
+  if (confirm('Reset all data? This cannot be undone.')){
+    state = {subjects:[], sessions:[], laps:[], goal:120};
+    save();
+  }
+};
+
+// timer
+let t0=null, timerId=null;
+function updateTimer(){
+  if (!t0){ qs('#timerDisplay').textContent='00:00:00'; return; }
+  const ms = Date.now()-t0;
+  const s = Math.floor(ms/1000);
+  const h = String(Math.floor(s/3600)).padStart(2,'0');
+  const m = String(Math.floor((s%3600)/60)).padStart(2,'0');
+  const ss = String(s%60).padStart(2,'0');
+  qs('#timerDisplay').textContent = \`\${h}:\${m}:\${ss}\`;
+}
+qs('#startTimer').onclick = ()=>{
+  if (!state.subjects.length){ alert('Add a subject first.'); return; }
+  if (timerId) return;
+  t0 = Date.now();
+  timerId = setInterval(updateTimer, 1000);
+};
+qs('#stopTimer').onclick = ()=>{
+  if (!timerId) return;
+  clearInterval(timerId); timerId=null;
+  const ms = Date.now()-t0; t0=null; updateTimer();
+  const mins = Math.max(1, Math.round(ms/60000));
+  const subj = qs('#timerSubject').value || (state.subjects[0]?.id);
+  addSession(subj, mins, new Date().toISOString().slice(0,10), 'Timer session');
+};
+qs('#lapBtn').onclick = ()=>{
+  if (!timerId) return;
+  const ms = Date.now()-t0;
+  const mins = Math.max(1, Math.round(ms/60000));
+  const subj = qs('#timerSubject').value || (state.subjects[0]?.id);
+  addSession(subj, mins, new Date().toISOString().slice(0,10), 'Lap');
+  t0 = Date.now();
+};
+
+// PWA
+if ('serviceWorker' in navigator){
+  window.addEventListener('load', ()=>{
+    navigator.serviceWorker.register('./sw.js').catch(()=>{});
+  });
+}
+
+window.addEventListener('resize', renderWeekChart);
+document.addEventListener('visibilitychange', ()=>{ if (document.visibilityState==='visible') render(); });
+
+// seed if empty
+if (state.subjects.length===0){
+  addSubject('Physics', 120, '#1565c0');
+  addSubject('Chemistry', 120, '#00897b');
+  addSubject('Biology', 120, '#8e24aa');
+  addSession(state.subjects[0].id, 60, new Date().toISOString().slice(0,10), 'Kinematics');
+  addSession(state.subjects[1].id, 45, new Date().toISOString().slice(0,10), 'Thermo MCQs');
+}
+
+// initial render
+render();
+</script>
+</body>
+</html>
